@@ -61,7 +61,7 @@ Note: It is possible to run NUKI Hub alongside a NUKI Bridge. This is not recomm
 ## Support
 
 If you haven't ordered your NUKI product yet, you can support me by using my referrer code when placing your order:<br>
-REFEQHBZ8AR8C<br>
+REF682DTEMSWK<br>
 This will also give you a 10% discount on your order.
 
 This project is free to use for everyone. However if you feel like donating, you can buy me a coffee at ko-fi.com:
@@ -281,6 +281,12 @@ Unlatching can be triggered using the lock.open service.
 
 When using multiple NUKI devices, different paths for each device have to be configured. Navigate to "NUKI Configuration" and change the "MQTT NUKI Smartlock Path"
 or "MQTT NUKI Opener Path" under "Basic NUKI Configuration" for at least one of the devices.
+
+### The battery is draining quickly.
+This often is a result of enabling "Register as app" without using a NUKI Bridge together with NUKI Hub.
+Doing so will cause NUKI Hub to constantly query the lock, and thus draining the battery.
+To fix this, unpair NUKI Hub, disable "Register as app", and re-pair.<br>
+Never enable "Register as app" unless you intend to use a NUKI Bridge in addition to NUKI Hub!
 
 ## Development VM
 
