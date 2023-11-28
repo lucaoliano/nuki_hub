@@ -496,7 +496,7 @@ bool Network::reconnect()
             _device->printError();
             _mqttConnectionState = 0;
             _nextReconnect = millis() + 5000;
-            _device->mqttDisonnect(true);
+            _device->mqttDisconnect(true);
         }
     }
     return _mqttConnectionState > 0;
@@ -1045,7 +1045,7 @@ void Network::publishHASSConfigSoundLevel(char *deviceType, const char *baseTopi
                      deviceType,
                      "",
                      "",
-                     "config",
+                     "diagnostic",
                      mqtt_topic_config_sound_level,
                      { { "ic", "mdi:volume-source" },
                        { "min", "0" },
@@ -1088,7 +1088,7 @@ void Network::publishHASSConfigKeypadAttemptInfo(char *deviceType, const char *b
                      "diagnostic",
                      "",
                      { { "ic", "mdi:drag-vertical" },
-                                      { "value_template", "{{ (value_json|selectattr('type', 'eq', 'KeypadAction')|first).completionStatus }}" }});
+                                      { "value_template", "{{ (value_json|selectattr('type', 'eq', 'KeypadAction')|first|default).completionStatus|default }}" }});
 }
 
 void Network::publishHASSWifiRssiConfig(char *deviceType, const char *baseTopic, char *name, char *uidString)

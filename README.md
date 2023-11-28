@@ -203,7 +203,7 @@ can be configured for a specific role:
 - Output: High when RTO or CM active: Outputs a high signal when either ring-to-open or continuous mode is active (opener)
 - General input (pull-down): The pin is configured in pull-down configuration and its state is published to the "gpio/pin_x/state" topic
 - General input (pull-up): The pin is configured in pull-up configuration and its state is published to the "gpio/pin_x/state" topic
-- Genral output: The pin is set to high or low depending on the "gpio/pin/x/state" topic
+- Genral output: The pin is set to high or low depending on the "gpio/pin_x/state" topic
 
 Note: The old setting "Enable control via GPIO" is removed. If you had enabled this setting before upgrading to 8.22, the PINs are automatically configured to be
 compatible with the previously hard-coded PINs.
@@ -258,6 +258,12 @@ For more information check the related issue:<br>
 https://github.com/technyon/nuki_hub/issues/39
 <br><br>
 Also, check that pairing is allowed. In the smartphone app, go to Settings --> Features & Configuration --> Button & LED and make sure "Bluetooh Pairing" is enabled.
+
+### In Home Assistant, the lock is shown as unavailable
+
+Make sure you are using at least version 2023.8.0 of home assistant. 
+The HA developers have changes to the MQTT auto discovery which break support for older version, and NUKI Hub
+has adopted these changes. That unfortunately means that older versions of HA are not supported anymore.
 
 ## FAQ
 
