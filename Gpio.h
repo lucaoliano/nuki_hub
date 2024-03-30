@@ -10,10 +10,14 @@ enum class PinRole
     InputLock,
     InputUnlock,
     InputUnlatch,
+    InputLockNgo,
+    InputLockNgoUnlatch,
     InputElectricStrikeActuation,
     InputActivateRTO,
     InputActivateCM,
     InputDeactivateRtoCm,
+    InputDeactivateRTO,
+    InputDeactivateCM,
     OutputHighLocked,
     OutputHighUnlocked,
     OutputHighMotorBlocked,
@@ -30,10 +34,14 @@ enum class GpioAction
     Lock,
     Unlock,
     Unlatch,
+    LockNgo,
+    LockNgoUnlatch,
     ElectricStrikeActuation,
     ActivateRTO,
     ActivateCM,
     DeactivateRtoCm,
+    DeactivateRTO,
+    DeactivateCM,
     GeneralInput
 };
 
@@ -78,10 +86,14 @@ private:
             PinRole::InputLock,
             PinRole::InputUnlock,
             PinRole::InputUnlatch,
+            PinRole::InputLockNgo,
+            PinRole::InputLockNgoUnlatch,
             PinRole::InputElectricStrikeActuation,
             PinRole::InputActivateRTO,
             PinRole::InputActivateCM,
             PinRole::InputDeactivateRtoCm,
+            PinRole::InputDeactivateRTO,
+            PinRole::InputDeactivateCM,
             PinRole::OutputHighLocked,
             PinRole::OutputHighUnlocked,
             PinRole::OutputHighRtoActive,
@@ -98,10 +110,14 @@ private:
     static void IRAM_ATTR isrLock();
     static void IRAM_ATTR isrUnlock();
     static void IRAM_ATTR isrUnlatch();
+    static void IRAM_ATTR isrLockNgo();
+    static void IRAM_ATTR isrLockNgoUnlatch();
     static void IRAM_ATTR isrElectricStrikeActuation();
     static void IRAM_ATTR isrActivateRTO();
     static void IRAM_ATTR isrActivateCM();
     static void IRAM_ATTR isrDeactivateRtoCm();
+    static void IRAM_ATTR isrDeactivateRTO();
+    static void IRAM_ATTR isrDeactivateCM();
 
     std::vector<std::function<void(const GpioAction&, const int&)>> _callbacks;
 

@@ -50,6 +50,14 @@ void Gpio::init()
                 pinMode(entry.pin, INPUT_PULLUP);
                 attachInterrupt(entry.pin, isrUnlatch, FALLING);
                 break;
+            case PinRole::InputLockNgo:
+                pinMode(entry.pin, INPUT_PULLUP);
+                attachInterrupt(entry.pin, isrLockNgo, FALLING);
+                break;
+            case PinRole::InputLockNgoUnlatch:
+                pinMode(entry.pin, INPUT_PULLUP);
+                attachInterrupt(entry.pin, isrLockNgoUnlatch, FALLING);
+                break;
             case PinRole::InputElectricStrikeActuation:
                 pinMode(entry.pin, INPUT_PULLUP);
                 attachInterrupt(entry.pin, isrElectricStrikeActuation, FALLING);
@@ -65,6 +73,14 @@ void Gpio::init()
             case PinRole::InputDeactivateRtoCm:
                 pinMode(entry.pin, INPUT_PULLUP);
                 attachInterrupt(entry.pin, isrDeactivateRtoCm, FALLING);
+                break;
+            case PinRole::InputDeactivateRTO:
+                pinMode(entry.pin, INPUT_PULLUP);
+                attachInterrupt(entry.pin, isrDeactivateRTO, FALLING);
+                break;
+            case PinRole::InputDeactivateCM:
+                pinMode(entry.pin, INPUT_PULLUP);
+                attachInterrupt(entry.pin, isrDeactivateCM, FALLING);
                 break;
             case PinRole::OutputHighLocked:
             case PinRole::OutputHighUnlocked:
@@ -179,6 +195,10 @@ String Gpio::getRoleDescription(PinRole role) const
             return "Input: Unlock";
         case PinRole::InputUnlatch:
             return "Input: Unlatch";
+        case PinRole::InputLockNgo:
+            return "Input: Lock n Go";
+        case PinRole::InputLockNgoUnlatch:
+            return "Input: Lock n Go and unlatch";
         case PinRole::InputElectricStrikeActuation:
             return "Input: Electric strike actuation";
         case PinRole::InputActivateRTO:
@@ -187,6 +207,10 @@ String Gpio::getRoleDescription(PinRole role) const
             return "Input: Activate CM";
         case PinRole::InputDeactivateRtoCm:
             return "Input: Deactivate RTO/CM";
+        case PinRole::InputDeactivateRTO:
+            return "Input: Deactivate RTO";
+        case PinRole::InputDeactivateCM:
+            return "Input: Deactivate CM";
         case PinRole::OutputHighLocked:
             return "Output: High when locked";
         case PinRole::OutputHighUnlocked:
@@ -273,6 +297,20 @@ void Gpio::isrUnlatch()
     _debounceTs = millis() + _debounceTime;
 }
 
+void Gpio::isrLockNgo()
+{
+    if(millis() < _debounceTs) return;
+    _inst->notify(GpioAction::LockNgo, -1);
+    _debounceTs = millis() + _debounceTime;
+}
+
+void Gpio::isrLockNgoUnlatch()
+{
+    if(millis() < _debounceTs) return;
+    _inst->notify(GpioAction::LockNgoUnlatch, -1);
+    _debounceTs = millis() + _debounceTime;
+}
+
 void Gpio::isrElectricStrikeActuation()
 {
     if(millis() < _debounceTs) return;
@@ -298,6 +336,20 @@ void Gpio::isrDeactivateRtoCm()
 {
     if(millis() < _debounceTs) return;
     _inst->notify(GpioAction::DeactivateRtoCm, -1);
+    _debounceTs = millis() + _debounceTime;
+}
+
+void Gpio::isrDeactivateRTO()
+{
+    if(millis() < _debounceTs) return;
+    _inst->notify(GpioAction::DeactivateRTO, -1);
+    _debounceTs = millis() + _debounceTime;
+}
+
+void Gpio::isrDeactivateCM()
+{
+    if(millis() < _debounceTs) return;
+    _inst->notify(GpioAction::DeactivateCM, -1);
     _debounceTs = millis() + _debounceTime;
 }
 

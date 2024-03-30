@@ -2,6 +2,10 @@
 #include "PreferencesKeys.h"
 #include "Logger.h"
 #include "CharBuffer.h"
+#include <NimBLEDevice.h>
+#include <NimBLEAdvertisedDevice.h>
+#include "NimBLEBeacon.h"
+#include "NukiUtils.h"
 
 PresenceDetection::PresenceDetection(Preferences* preferences, BleScanner::Scanner *bleScanner, Network* network, char* buffer, size_t bufferSize)
 : _preferences(preferences),
@@ -86,7 +90,7 @@ void PresenceDetection::buildCsv(const PdDevice &device)
     ++_csvIndex;
 
     int i=0;
-    while(device.name[i] != 0x00 && i < 30)
+    while(device.name[i] != 0x00 && i < sizeof(device.name))
     {
         _csv[_csvIndex] = device.name[i];
         ++_csvIndex;
@@ -172,6 +176,26 @@ void PresenceDetection::onResult(NimBLEAdvertisedDevice *device)
             pdDevice.timestamp = millis();
 
             _devices[addr] = pdDevice;
+        }
+        else if (device->haveManufacturerData())
+        {
+            std::string strManufacturerData = device->getManufacturerData();
+
+            uint8_t cManufacturerData[100];
+            strManufacturerData.copy((char *)cManufacturerData,  std::min(strManufacturerData.length(), sizeof(cManufacturerData)), 0);
+
+            if (strManufacturerData.length() == 25 && cManufacturerData[0] == 0x4C && cManufacturerData[1] == 0x00)
+            {
+                BLEBeacon oBeacon = BLEBeacon();
+                oBeacon.setData(strManufacturerData);
+
+                if(ENDIAN_CHANGE_U16(oBeacon.getMinor()) == 40004)
+                {
+                    pdDevice.timestamp = millis();
+                    strcpy(pdDevice.name, oBeacon.getProximityUUID().toString().c_str());
+                    _devices[addr] = pdDevice;
+                }
+            }
         }
     }
     else

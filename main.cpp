@@ -138,12 +138,79 @@ bool initPreferences()
     preferences = new Preferences();
     preferences->begin("nukihub", false);
 
+//    preferences->putBool(preference_network_wifi_fallback_disabled, false);
+
     bool firstStart = !preferences->getBool(preference_started_before);
 
     if(firstStart)
     {
         preferences->putBool(preference_started_before, true);
         preferences->putBool(preference_lock_enabled, true);
+        preferences->putBool(preference_admin_enabled, true);
+
+        uint32_t aclPrefs[17] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+        preferences->putBytes(preference_acl, (byte*)(&aclPrefs), sizeof(aclPrefs));
+    }
+    else
+    {
+        int configVer = preferences->getInt(preference_config_version);
+
+        if(configVer < (atof(NUKI_HUB_VERSION) * 100))
+        {
+            if (configVer < 834)
+            {
+                if(preferences->getInt(preference_keypad_control_enabled))
+                {
+                    preferences->putBool(preference_keypad_info_enabled, true);
+                }
+                else
+                {
+                    preferences->putBool(preference_keypad_info_enabled, false);
+                }
+
+                switch(preferences->getInt(preference_access_level))
+                {
+                    case 0:
+                        {
+                            preferences->putBool(preference_keypad_control_enabled, true);
+                            preferences->putBool(preference_admin_enabled, true);
+
+                            uint32_t aclPrefs[17] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+                            preferences->putBytes(preference_acl, (byte*)(&aclPrefs), sizeof(aclPrefs));
+                            break;
+                        }
+                    case 1:
+                        {
+                            preferences->putBool(preference_keypad_control_enabled, false);
+                            preferences->putBool(preference_admin_enabled, false);
+
+                            uint32_t aclPrefs[17] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0};
+                            preferences->putBytes(preference_acl, (byte*)(&aclPrefs), sizeof(aclPrefs));
+                            break;
+                        }
+                    case 2:
+                        {
+                            preferences->putBool(preference_keypad_control_enabled, false);
+                            preferences->putBool(preference_admin_enabled, false);
+
+                            uint32_t aclPrefs[17] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+                            preferences->putBytes(preference_acl, (byte*)(&aclPrefs), sizeof(aclPrefs));
+                            break;
+                        }
+                    case 3:
+                        {
+                            preferences->putBool(preference_keypad_control_enabled, false);
+                            preferences->putBool(preference_admin_enabled, false);
+
+                            uint32_t aclPrefs[17] = {1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0};
+                            preferences->putBytes(preference_acl, (byte*)(&aclPrefs), sizeof(aclPrefs));
+                            break;
+                        }
+                }                
+            }
+
+            preferences->putInt(preference_config_version, atof(NUKI_HUB_VERSION) * 100);
+        }
     }
 
     return firstStart;
@@ -154,7 +221,7 @@ void setup()
     Serial.begin(115200);
     Log = &Serial;
 
-    Log->print(F("NUKI Hub version ")); Log->println(NUKI_HUB_VERSION);
+    Log->print(F("Nuki Hub version ")); Log->println(NUKI_HUB_VERSION);
 
     bool firstStart = initPreferences();
 
@@ -205,14 +272,14 @@ void setup()
     bleScanner->initialize("NukiHub");
     bleScanner->setScanDuration(10);
 
-    Log->println(lockEnabled ? F("NUKI Lock enabled") : F("NUKI Lock disabled"));
+    Log->println(lockEnabled ? F("Nuki Lock enabled") : F("Nuki Lock disabled"));
     if(lockEnabled)
     {
         nuki = new NukiWrapper("NukiHub", deviceIdLock, bleScanner, networkLock, gpio, preferences);
         nuki->initialize(firstStart);
     }
 
-    Log->println(openerEnabled ? F("NUKI Opener enabled") : F("NUKI Opener disabled"));
+    Log->println(openerEnabled ? F("Nuki Opener enabled") : F("Nuki Opener disabled"));
     if(openerEnabled)
     {
         nukiOpener = new NukiOpenerWrapper("NukiHub", deviceIdOpener, bleScanner, networkOpener, gpio, preferences);

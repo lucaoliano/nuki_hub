@@ -6,7 +6,6 @@
 #include "NukiDataTypes.h"
 #include "BleScanner.h"
 #include "Gpio.h"
-#include "AccessLevel.h"
 #include "NukiDeviceId.h"
 
 class NukiOpenerWrapper : public NukiOpener::SmartlockEventHandler
@@ -22,12 +21,14 @@ public:
     void activateRTO();
     void activateCM();
     void deactivateRtoCm();
+    void deactivateRTO();
+    void deactivateCM();
 
     bool isPinSet();
     void setPin(const uint16_t pin);
 
     void unpair();
-    
+
     void disableHASS();
 
     void disableWatchdog();
@@ -63,7 +64,7 @@ private:
 
     void readConfig();
     void readAdvancedConfig();
-    
+
     void setupHASS();
 
     void printCommandResult(Nuki::CmdResult result);
@@ -87,8 +88,8 @@ private:
     int _nrOfRetries = 0;
     int _retryDelay = 0;
     int _retryCount = 0;
+    int _retryConfigCount = 0;
     int _retryLockstateCount = 0;
-    static AccessLevel _accessLevel;
     unsigned long _nextRetryTs = 0;
     std::vector<uint16_t> _keypadCodeIds;
 

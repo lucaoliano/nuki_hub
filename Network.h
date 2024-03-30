@@ -8,6 +8,8 @@
 #include "networkDevices/IPConfiguration.h"
 #include "MqttTopics.h"
 #include "Gpio.h"
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
 
 enum class NetworkDeviceType
 {
@@ -43,10 +45,12 @@ public:
     void publishBool(const char* prefix, const char* topic, const bool value);
     bool publishString(const char* prefix, const char* topic, const char* value);
 
-    void publishHASSConfig(char* deviceType, const char* baseTopic, char* name, char* uidString, const char* availabilityTopic, const bool& hasKeypad, char* lockAction, char* unlockAction, char* openAction, char* lockedState, char* unlockedState);
+    void publishHASSConfig(char* deviceType, const char* baseTopic, char* name, char* uidString, const char* availabilityTopic, const bool& hasKeypad, char* lockAction, char* unlockAction, char* openAction);
+    void publishHASSConfigAdditionalButtons(char* deviceType, const char* baseTopic, char* name, char* uidString);
     void publishHASSConfigBatLevel(char* deviceType, const char* baseTopic, char* name, char* uidString);
-    void publishHASSConfigDoorSensor(char* deviceType, const char* baseTopic, char* name, char* uidString, char* lockAction, char* unlockAction, char* openAction, char* lockedState, char* unlockedState);
+    void publishHASSConfigDoorSensor(char* deviceType, const char* baseTopic, char* name, char* uidString);
     void publishHASSConfigRingDetect(char* deviceType, const char* baseTopic, char* name, char* uidString);
+    void publishHASSConfigContinuousMode(char* deviceType, const char* baseTopic, char* name, char* uidString);
     void publishHASSConfigLedBrightness(char* deviceType, const char* baseTopic, char* name, char* uidString);
     void publishHASSConfigSoundLevel(char* deviceType, const char* baseTopic, char* name, char* uidString);
     void publishHASSConfigAccessLog(char* deviceType, const char* baseTopic, char* name, char* uidString);
@@ -82,7 +86,7 @@ private:
     bool reconnect();
 
     void publishHassTopic(const String& mqttDeviceType,
-                          const String& mattDeviceName,
+                          const String& mqttDeviceName,
                           const String& uidString,
                           const String& uidStringPostfix,
                           const String& displayName,
@@ -96,9 +100,23 @@ private:
                           const String& commandTopic = "",
                           std::vector<std::pair<char*, char*>> additionalEntries = {}
                           );
-
-    void removeHassTopic(const String& mqttDeviceType, const String& mattDeviceName, const String& uidString);
-
+    
+    String createHassTopicPath(const String& mqttDeviceType, const String& mqttDeviceName, const String& uidString);
+    void removeHassTopic(const String& mqttDeviceType, const String& mqttDeviceName, const String& uidString);
+    DynamicJsonDocument createHassJson(const String& uidString,
+                        const String& uidStringPostfix,
+                        const String& displayName,
+                        const String& name,
+                        const String& baseTopic,
+                        const String& stateTopic,
+                        const String& deviceType,
+                        const String& deviceClass,
+                        const String& stateClass = "",
+                        const String& entityCat = "",
+                        const String& commandTopic = "",
+                        std::vector<std::pair<char*, char*>> additionalEntries = {}
+                        );
+                          
     void onMqttConnect(const bool& sessionPresent);
     void onMqttDisconnect(const espMqttClientTypes::DisconnectReason& reason);
 
@@ -109,6 +127,9 @@ private:
     const char* _lastWillPayload = "offline";
     char _mqttConnectionStateTopic[211] = {0};
     String _lockPath;
+
+    const char* _latestVersion;
+    HTTPClient https;
 
     Preferences* _preferences;
     Gpio* _gpio;
@@ -136,6 +157,7 @@ private:
 
     unsigned long _lastConnectedTs = 0;
     unsigned long _lastMaintenanceTs = 0;
+    unsigned long _lastUpdateCheckTs = 0;
     unsigned long _lastRssiTs = 0;
     bool _mqttEnabled = true;
     static unsigned long _ignoreSubscriptionsTs;

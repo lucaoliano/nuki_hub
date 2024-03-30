@@ -49,6 +49,7 @@ void NetworkOpener::initialize()
     _network->initTopic(_mqttPath, mqtt_topic_query_config, "0");
     _network->initTopic(_mqttPath, mqtt_topic_query_lockstate, "0");
     _network->initTopic(_mqttPath, mqtt_topic_query_battery, "0");
+    _network->initTopic(_mqttPath, mqtt_topic_lock_binary_ring, "standby");
     _network->subscribe(_mqttPath, mqtt_topic_query_config);
     _network->subscribe(_mqttPath, mqtt_topic_query_lockstate);
     _network->subscribe(_mqttPath, mqtt_topic_query_battery);
@@ -77,13 +78,10 @@ void NetworkOpener::initialize()
 
 void NetworkOpener::update()
 {
-    if(_resetLockStateTs != 0 && millis() >= _resetLockStateTs)
+    if(_resetRingStateTs != 0 && millis() >= _resetRingStateTs)
     {
-        char str[50];
-        memset(str, 0, sizeof(str));
-        _resetLockStateTs = 0;
-        lockstateToString(_currentLockState, str);
-        publishString(mqtt_topic_lock_state, str);
+        _resetRingStateTs = 0;
+        publishString(mqtt_topic_lock_binary_ring, "standby");
     }
 }
 
@@ -202,48 +200,62 @@ void NetworkOpener::publishKeyTurnerState(const NukiOpener::OpenerState& keyTurn
     _currentLockState = keyTurnerState.lockState;
 
     char str[50];
+    memset(&str, 0, sizeof(str));
+
+    DynamicJsonDocument json(_bufferSize);
+
+    lockstateToString(keyTurnerState.lockState, str);
 
     if((_firstTunerStatePublish || keyTurnerState.lockState != lastKeyTurnerState.lockState || keyTurnerState.nukiState != lastKeyTurnerState.nukiState) && keyTurnerState.lockState != NukiOpener::LockState::Undefined)
     {
-        memset(&str, 0, sizeof(str));
-
-        if(keyTurnerState.nukiState == NukiOpener::State::ContinuousMode)
-        {
-            publishString(mqtt_topic_lock_state, "ContinuousMode");
-        }
-        else
-        {
-            lockstateToString(keyTurnerState.lockState, str);
-            publishString(mqtt_topic_lock_state, str);
-        }
+        publishString(mqtt_topic_lock_state, str);
 
         if(_haEnabled)
         {
-            publishBinaryState(keyTurnerState);
+            publishState(keyTurnerState);
         }
     }
 
+    json["lock_state"] = str;
+
+    if(keyTurnerState.nukiState == NukiOpener::State::ContinuousMode)
+    {
+        publishString(mqtt_topic_lock_continuous_mode, "on");
+        json["continuous_mode"] = 1;
+    } else {
+        publishString(mqtt_topic_lock_continuous_mode, "off");
+        json["continuous_mode"] = 0;
+    }
+
+    memset(&str, 0, sizeof(str));
+    triggerToString(keyTurnerState.trigger, str);
+
     if(_firstTunerStatePublish || keyTurnerState.trigger != lastKeyTurnerState.trigger)
     {
-        memset(&str, 0, sizeof(str));
-        triggerToString(keyTurnerState.trigger, str);
         publishString(mqtt_topic_lock_trigger, str);
     }
 
+    json["trigger"] = str;
+
+    memset(&str, 0, sizeof(str));
+    completionStatusToString(keyTurnerState.lastLockActionCompletionStatus, str);
 
     if(_firstTunerStatePublish || keyTurnerState.lastLockActionCompletionStatus != lastKeyTurnerState.lastLockActionCompletionStatus)
     {
-        memset(&str, 0, sizeof(str));
-        completionStatusToString(keyTurnerState.lastLockActionCompletionStatus, str);
         publishString(mqtt_topic_lock_completionStatus, str);
     }
 
+    json["lock_completion_status"] = str;
+
+    memset(&str, 0, sizeof(str));
+    NukiOpener::doorSensorStateToString(keyTurnerState.doorSensorState, str);
+
     if(_firstTunerStatePublish || keyTurnerState.doorSensorState != lastKeyTurnerState.doorSensorState)
     {
-        memset(&str, 0, sizeof(str));
-        NukiOpener::doorSensorStateToString(keyTurnerState.doorSensorState, str);
         publishString(mqtt_topic_lock_door_sensor_state, str);
     }
+
+    json["door_sensor_state"] = str;
 
     if(_firstTunerStatePublish || keyTurnerState.criticalBatteryState != lastKeyTurnerState.criticalBatteryState)
     {
@@ -251,19 +263,35 @@ void NetworkOpener::publishKeyTurnerState(const NukiOpener::OpenerState& keyTurn
         publishBool(mqtt_topic_battery_critical, critical);
     }
 
+    json["auth_id"] = authId;
+    json["auth_name"] = authName;
+
+    serializeJson(json, _buffer, _bufferSize);
+    publishString(mqtt_topic_lock_json, _buffer);
+
     _firstTunerStatePublish = false;
 }
 
-void NetworkOpener::publishRing()
+void NetworkOpener::publishRing(const bool locked)
 {
-    publishString(mqtt_topic_lock_state, "ring");
-    _resetLockStateTs = millis() + 2000;
+    if (locked)
+    {
+        publishString(mqtt_topic_lock_ring, "ringlocked");
+    }
+    else
+    {
+        publishString(mqtt_topic_lock_ring, "ring");
+    }
+    
+    publishString(mqtt_topic_lock_binary_ring, "ring");
+    _resetRingStateTs = millis() + 2000;
 }
 
-void NetworkOpener::publishBinaryState(NukiOpener::OpenerState lockState)
+void NetworkOpener::publishState(NukiOpener::OpenerState lockState)
 {
     if(lockState.nukiState == NukiOpener::State::ContinuousMode)
     {
+        publishString(mqtt_topic_lock_ha_state, "unlocked");
         publishString(mqtt_topic_lock_binary_state, "unlocked");
     }
     else
@@ -271,12 +299,21 @@ void NetworkOpener::publishBinaryState(NukiOpener::OpenerState lockState)
         switch (lockState.lockState)
         {
             case NukiOpener::LockState::Locked:
+                publishString(mqtt_topic_lock_ha_state, "locked");
                 publishString(mqtt_topic_lock_binary_state, "locked");
                 break;
             case NukiOpener::LockState::RTOactive:
             case NukiOpener::LockState::Open:
-            case NukiOpener::LockState::Opening:
+                publishString(mqtt_topic_lock_ha_state, "unlocked");
                 publishString(mqtt_topic_lock_binary_state, "unlocked");
+                break;
+            case NukiOpener::LockState::Opening:
+                publishString(mqtt_topic_lock_ha_state, "unlocking");
+                publishString(mqtt_topic_lock_binary_state, "unlocked");
+                break;
+            case NukiOpener::LockState::Undefined:
+            case NukiOpener::LockState::Uncalibrated:
+                publishString(mqtt_topic_lock_ha_state, "jammed");
                 break;
             default:
                 break;
@@ -289,14 +326,19 @@ void NetworkOpener::publishAuthorizationInfo(const std::list<NukiOpener::LogEntr
     char str[50];
 
     bool authFound = false;
-    uint32_t authId = 0;
-    char authName[33];
     memset(authName, 0, sizeof(authName));
 
     DynamicJsonDocument json(_bufferSize);
 
+    int i = 5;
     for(const auto& log : logEntries)
     {
+        if(i <= 0)
+        {
+            break;
+        }
+        --i;
+
         if((log.loggingType == NukiOpener::LoggingType::LockAction || log.loggingType == NukiOpener::LoggingType::KeypadAction) && ! authFound)
         {
             authFound = true;
@@ -487,13 +529,14 @@ void NetworkOpener::publishBleAddress(const std::string &address)
     publishString(mqtt_topic_lock_address, address);
 }
 
-void NetworkOpener::publishHASSConfig(char* deviceType, const char* baseTopic, char* name, char* uidString, char* lockAction, char* unlockAction, char* openAction, char* lockedState, char* unlockedState)
+void NetworkOpener::publishHASSConfig(char* deviceType, const char* baseTopic, char* name, char* uidString, char* lockAction, char* unlockAction, char* openAction)
 {
     String availabilityTopic = _preferences->getString("mqttpath");
     availabilityTopic.concat("/maintenance/mqttConnectionState");
 
-    _network->publishHASSConfig(deviceType, baseTopic, name, uidString, availabilityTopic.c_str(), false, lockAction, unlockAction, openAction, lockedState, unlockedState);
+    _network->publishHASSConfig(deviceType, baseTopic, name, uidString, availabilityTopic.c_str(), false, lockAction, unlockAction, openAction);
     _network->publishHASSConfigRingDetect(deviceType, baseTopic, name, uidString);
+    _network->publishHASSConfigContinuousMode(deviceType, baseTopic, name, uidString);
     _network->publishHASSConfigSoundLevel(deviceType, baseTopic, name, uidString);
     _network->publishHASSBleRssiConfig(deviceType, baseTopic, name, uidString);
 }
@@ -506,6 +549,9 @@ void NetworkOpener::removeHASSConfig(char* uidString)
 void NetworkOpener::publishKeypad(const std::list<NukiLock::KeypadEntry>& entries, uint maxKeypadCodeCount)
 {
     uint index = 0;
+
+    DynamicJsonDocument json(_bufferSize);
+
     for(const auto& entry : entries)
     {
         String basePath = mqtt_topic_keypad;
@@ -513,8 +559,25 @@ void NetworkOpener::publishKeypad(const std::list<NukiLock::KeypadEntry>& entrie
         basePath.concat(std::to_string(index).c_str());
         publishKeypadEntry(basePath, entry);
 
+        auto jsonEntry = json.add();
+
+        jsonEntry["id"] = entry.codeId;
+        jsonEntry["enabled"] = entry.enabled;
+        jsonEntry["name"] = entry.name;
+        jsonEntry["createdYear"] = entry.dateCreatedYear;
+        jsonEntry["createdMonth"] = entry.dateCreatedMonth;
+        jsonEntry["createdDay"] = entry.dateCreatedDay;
+        jsonEntry["createdHour"] = entry.dateCreatedHour;
+        jsonEntry["createdMin"] = entry.dateCreatedMin;
+        jsonEntry["createdSec"] = entry.dateCreatedSec;
+        jsonEntry["lockCount"] = entry.lockCount;
+
         ++index;
     }
+
+    serializeJson(json, _buffer, _bufferSize);
+    publishString(mqtt_topic_keypad_json, _buffer);
+
     while(index < maxKeypadCodeCount)
     {
         NukiLock::KeypadEntry entry;

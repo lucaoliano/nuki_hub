@@ -7,7 +7,7 @@
 #include <NukiOpenerUtils.h>
 
 NukiOpenerWrapper* nukiOpenerInst;
-AccessLevel NukiOpenerWrapper::_accessLevel = AccessLevel::ReadOnly;
+Preferences* nukiOpenerPreferences = nullptr;
 
 NukiOpenerWrapper::NukiOpenerWrapper(const std::string& deviceName, NukiDeviceId* deviceId, BleScanner::Scanner* scanner, NetworkOpener* network, Gpio* gpio, Preferences* preferences)
 : _deviceName(deviceName),
@@ -52,7 +52,7 @@ void NukiOpenerWrapper::initialize()
     _intervalConfig = _preferences->getInt(preference_query_interval_configuration);
     _intervalBattery = _preferences->getInt(preference_query_interval_battery);
     _intervalKeypad = _preferences->getInt(preference_query_interval_keypad);
-    _keypadEnabled = _preferences->getBool(preference_keypad_control_enabled);
+    _keypadEnabled = _preferences->getBool(preference_keypad_info_enabled);
     _publishAuthData = _preferences->getBool(preference_publish_authdata);
     _maxKeypadCodeCount = _preferences->getUInt(preference_opener_max_keypad_code_count);
     _restartBeaconTimeout = _preferences->getInt(preference_restart_ble_beacon_lost);
@@ -60,7 +60,6 @@ void NukiOpenerWrapper::initialize()
     _nrOfRetries = _preferences->getInt(preference_command_nr_of_retries);
     _retryDelay = _preferences->getInt(preference_command_retry_delay);
     _rssiPublishInterval = _preferences->getInt(preference_rssi_publish_interval) * 1000;
-    _accessLevel = (AccessLevel)_preferences->getInt(preference_access_level);
 
     if(_retryDelay <= 100)
     {
@@ -291,6 +290,16 @@ void NukiOpenerWrapper::deactivateRtoCm()
     }
 }
 
+void NukiOpenerWrapper::deactivateRTO()
+{
+    _nextLockAction = NukiOpener::LockAction::DeactivateRTO;
+}
+
+void NukiOpenerWrapper::deactivateCM()
+{
+    _nextLockAction = NukiOpener::LockAction::DeactivateCM;
+}
+
 bool NukiOpenerWrapper::isPinSet()
 {
     return _nukiOpener.getSecurityPincode() != 0;
@@ -305,6 +314,7 @@ void NukiOpenerWrapper::unpair()
 {
     _nukiOpener.unPairNuki();
     _deviceId->assignNewId();
+    _preferences->remove(preference_nuki_id_opener);
     _paired = false;
 }
 
@@ -335,11 +345,19 @@ void NukiOpenerWrapper::updateKeyTurnerState()
         _lastKeyTurnerState.lockState == NukiOpener::LockState::Locked &&
         _lastKeyTurnerState.nukiState == _keyTurnerState.nukiState)
     {
-        Log->println(F("Nuki opener: Ring detected"));
-        _network->publishRing();
+        Log->println(F("Nuki opener: Ring detected (Locked)"));
+        _network->publishRing(true);
     }
     else
     {
+        if(_keyTurnerState.lockState != _lastKeyTurnerState.lockState &&
+        _keyTurnerState.lockState == NukiOpener::LockState::Open &&
+        _keyTurnerState.trigger == NukiOpener::Trigger::Manual)
+        {
+            Log->println(F("Nuki opener: Ring detected (Open)"));
+            _network->publishRing(false);
+        }
+
         _network->publishKeyTurnerState(_keyTurnerState, _lastKeyTurnerState);
         updateGpioOutputs();
 
@@ -347,12 +365,10 @@ void NukiOpenerWrapper::updateKeyTurnerState()
         {
             Log->println(F("Continuous Mode"));
         }
-        else
-        {
-            char lockStateStr[20];
-            lockstateToString(_keyTurnerState.lockState, lockStateStr);
-            Log->println(lockStateStr);
-        }
+
+        char lockStateStr[20];
+        lockstateToString(_keyTurnerState.lockState, lockStateStr);
+        Log->println(lockStateStr);
     }
 
     if(_publishAuthData)
@@ -380,22 +396,55 @@ void NukiOpenerWrapper::updateConfig()
     readConfig();
     readAdvancedConfig();
     _configRead = true;
-    _hasKeypad = _nukiConfig.hasKeypad > 0 || _nukiConfig.hasKeypadV2;
+    bool expectedConfig = true;
 
     if(_nukiConfigValid)
     {
-        _firmwareVersion = std::to_string(_nukiConfig.firmwareVersion[0]) + "." + std::to_string(_nukiConfig.firmwareVersion[1]) + "." + std::to_string(_nukiConfig.firmwareVersion[2]);
-        _hardwareVersion = std::to_string(_nukiConfig.hardwareRevision[0]) + "." + std::to_string(_nukiConfig.hardwareRevision[1]);
-        _network->publishConfig(_nukiConfig);
+        if(_preferences->getUInt(preference_nuki_id_opener, 0) == 0 || _retryConfigCount == 10)
+        {
+            _preferences->putUInt(preference_nuki_id_opener, _nukiConfig.nukiId);
+        }
+
+        if(_preferences->getUInt(preference_nuki_id_opener, 0) == _nukiConfig.nukiId)
+        {
+            _hasKeypad = _nukiConfig.hasKeypad > 0 || _nukiConfig.hasKeypadV2;
+            _firmwareVersion = std::to_string(_nukiConfig.firmwareVersion[0]) + "." + std::to_string(_nukiConfig.firmwareVersion[1]) + "." + std::to_string(_nukiConfig.firmwareVersion[2]);
+            _hardwareVersion = std::to_string(_nukiConfig.hardwareRevision[0]) + "." + std::to_string(_nukiConfig.hardwareRevision[1]);
+            _network->publishConfig(_nukiConfig);
+            _retryConfigCount = 0;
+        }
+        else
+        {
+            expectedConfig = false;
+            ++_retryConfigCount;
+        }
     }
-    if(_nukiAdvancedConfigValid)
+    else
+    {
+        expectedConfig = false;
+        ++_retryConfigCount;
+    }
+    if(_nukiAdvancedConfigValid && _preferences->getUInt(preference_nuki_id_opener, 0) == _nukiConfig.nukiId)
     {
         _network->publishAdvancedConfig(_nukiAdvancedConfig);
+        _retryConfigCount = 0;
+    }
+    else
+    {
+        expectedConfig = false;
+        ++_retryConfigCount;
+    }
+    if(!expectedConfig && _retryConfigCount < 11)
+    {
+        unsigned long ts = millis();
+        _nextConfigUpdateTs = ts + 60000;
     }
 }
 
 void NukiOpenerWrapper::updateAuthData()
 {
+    if(_nukiOpener.getSecurityPincode() == 0) return;
+
     Nuki::CmdResult result = _nukiOpener.retrieveLogEntries(0, 0, 0, true);
     if(result != Nuki::CmdResult::Success)
     {
@@ -424,6 +473,8 @@ void NukiOpenerWrapper::updateAuthData()
 
 void NukiOpenerWrapper::updateKeypad()
 {
+    if(_preferences->getBool(preference_keypad_info_enabled)) return;
+
     Log->print(F("Querying opener keypad: "));
     Nuki::CmdResult result = _nukiOpener.retrieveKeypadEntries(0, 0xffff);
     printCommandResult(result);
@@ -480,25 +531,20 @@ LockActionResult NukiOpenerWrapper::onLockActionReceivedCallback(const char *val
         return LockActionResult::UnknownAction;
     }
 
-    switch(_accessLevel)
+    nukiOpenerPreferences = new Preferences();
+    nukiOpenerPreferences->begin("nukihub", true);
+    uint32_t aclPrefs[17];
+    nukiOpenerPreferences->getBytes(preference_acl, &aclPrefs, sizeof(aclPrefs));
+
+    if((action == NukiOpener::LockAction::ActivateRTO && (int)aclPrefs[9] == 1) || (action == NukiOpener::LockAction::DeactivateRTO && (int)aclPrefs[10] == 1) || (action == NukiOpener::LockAction::ElectricStrikeActuation && (int)aclPrefs[11] == 1) || (action == NukiOpener::LockAction::ActivateCM && (int)aclPrefs[12] == 1) || (action == NukiOpener::LockAction::DeactivateCM && (int)aclPrefs[13] == 1) || (action == NukiOpener::LockAction::FobAction1 && (int)aclPrefs[14] == 1) || (action == NukiOpener::LockAction::FobAction2 && (int)aclPrefs[15] == 1) || (action == NukiOpener::LockAction::FobAction3 && (int)aclPrefs[16] == 1))
     {
-        case AccessLevel::Full:
-            nukiOpenerInst->_nextLockAction = action;
-            return LockActionResult::Success;
-            break;
-        case AccessLevel::LockOnly:
-            if(action == NukiOpener::LockAction::DeactivateRTO || action == NukiOpener::LockAction::DeactivateCM)
-            {
-                nukiOpenerInst->_nextLockAction = action;
-                return LockActionResult::Success;
-            }
-            return LockActionResult::AccessDenied;
-            break;
-        case AccessLevel::ReadOnly:
-        default:
-            return LockActionResult::AccessDenied;
-            break;
+        nukiOpenerPreferences->end();
+        nukiOpenerInst->_nextLockAction = action;
+        return LockActionResult::Success;
     }
+
+    nukiOpenerPreferences->end();
+    return LockActionResult::AccessDenied;
 }
 
 void NukiOpenerWrapper::onConfigUpdateReceivedCallback(const char *topic, const char *value)
@@ -527,12 +573,18 @@ void NukiOpenerWrapper::gpioActionCallback(const GpioAction &action, const int& 
         case GpioAction::DeactivateRtoCm:
             nukiOpenerInst->deactivateRtoCm();
             break;
+        case GpioAction::DeactivateRTO:
+            nukiOpenerInst->deactivateRTO();
+            break;
+        case GpioAction::DeactivateCM:
+            nukiOpenerInst->deactivateCM();
+            break;
     }
 }
 
 void NukiOpenerWrapper::onConfigUpdateReceived(const char *topic, const char *value)
 {
-    if(_accessLevel != AccessLevel::Full) return;
+    if(!_preferences->getBool(preference_admin_enabled)) return;
 
     if(strcmp(topic, mqtt_topic_config_button_enabled) == 0)
     {
@@ -559,7 +611,11 @@ void NukiOpenerWrapper::onConfigUpdateReceived(const char *topic, const char *va
 
 void NukiOpenerWrapper::onKeypadCommandReceived(const char *command, const uint &id, const String &name, const String &code, const int& enabled)
 {
-    if(_accessLevel != AccessLevel::Full) return;
+    if(!_preferences->getBool(preference_keypad_control_enabled))
+    {
+        _network->publishKeypadCommandResult("KeypadControlDisabled");
+        return;
+    }
 
     if(!_hasKeypad)
     {
@@ -728,11 +784,21 @@ void NukiOpenerWrapper::readAdvancedConfig()
 void NukiOpenerWrapper::setupHASS()
 {
     if(!_nukiConfigValid) return;
+    if(_preferences->getUInt(preference_nuki_id_opener, 0) != _nukiConfig.nukiId) return;
 
     String baseTopic = _preferences->getString(preference_mqtt_opener_path);
     char uidString[20];
     itoa(_nukiConfig.nukiId, uidString, 16);
-    _network->publishHASSConfig("Opener",baseTopic.c_str(),(char*)_nukiConfig.name,uidString, "deactivateRTO","activateRTO","electricStrikeActuation","locked","unlocked");
+
+    if (_preferences->getBool(preference_opener_continuous_mode))
+    {
+        _network->publishHASSConfig("Opener", baseTopic.c_str(), (char*)_nukiConfig.name, uidString, "deactivateCM", "activateCM", "electricStrikeActuation");
+    }
+    else
+    {
+        _network->publishHASSConfig("Opener", baseTopic.c_str(), (char*)_nukiConfig.name, uidString, "deactivateRTO", "activateRTO", "electricStrikeActuation");
+    }
+
     _hassSetupCompleted = true;
 
     Log->println("HASS setup for opener completed.");

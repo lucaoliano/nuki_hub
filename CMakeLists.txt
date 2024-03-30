@@ -50,13 +50,13 @@ set(SRCFILES
         NetworkLock.cpp
         NetworkOpener.cpp
         networkDevices/NetworkDevice.h
+        networkDevices/NetworkDevice.cpp
         networkDevices/WifiDevice.cpp
         networkDevices/W5500Device.cpp
         networkDevices/EthLan8720Device.cpp
         networkDevices/ClientSyncW5500.cpp
         networkDevices/espMqttClientW5500.cpp
         networkDevices/IPConfiguration.cpp
-        AccessLevel.h
         LockActionResult.h
         QueryCommand.h
         NukiWrapper.cpp

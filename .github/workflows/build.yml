@@ -5,16 +5,16 @@ jobs:
     name: Checkout source code and build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cache/pip
             ~/.platformio/.cache
           key: ${{ runner.os }}-pio
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.9'
       - name: Install PlatformIO Core
@@ -27,33 +27,34 @@ jobs:
           cp .pio/build/esp32dev/partitions.bin release/esp32dev/nuki_hub.partitions.bin
           cp .pio/build/esp32dev/bootloader.bin release/esp32dev/bootloader.bin
           echo "esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq keep --flash_size detect 0x1000 bootloader.bin 0x10000 nuki_hub.bin 0x8000 nuki_hub.partitions.bin" > release/esp32dev/flash.sh
-      - name: Build PlatformIO Project az-delivery-devkit-v4
+      - name: Build PlatformIO Project esp32-s3-devkitc-1
         run: |
-          pio run --environment az-delivery-devkit-v4
-          mkdir -p release/az-delivery-devkit-v4
-          cp .pio/build/az-delivery-devkit-v4/firmware.bin release/az-delivery-devkit-v4/nuki_hub.bin
-          cp .pio/build/az-delivery-devkit-v4/partitions.bin release/az-delivery-devkit-v4/nuki_hub.partitions.bin
-          cp .pio/build/az-delivery-devkit-v4/bootloader.bin release/az-delivery-devkit-v4/bootloader.bin
-          echo "esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq keep --flash_size detect 0x1000 bootloader.bin 0x10000 nuki_hub.bin 0x8000 nuki_hub.partitions.bin" > release/az-delivery-devkit-v4/flash.sh
+          pio run --environment esp32-s3-devkitc-1
+          mkdir -p release/esp32-s3-devkitc-1
+          cp .pio/build/esp32-s3-devkitc-1/firmware.bin release/esp32-s3-devkitc-1/nuki_hub.bin
+          cp .pio/build/esp32-s3-devkitc-1/partitions.bin release/esp32-s3-devkitc-1/nuki_hub.partitions.bin
+          cp .pio/build/esp32-s3-devkitc-1/bootloader.bin release/esp32-s3-devkitc-1/bootloader.bin
+          echo "esptool.py --chip esp32s3 --port /dev/ttyUSB0 --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq keep --flash_size detect 0x1000 bootloader.bin 0x10000 nuki_hub.bin 0x8000 nuki_hub.partitions.bin" > release/esp32-s3-devkitc-1/flash.sh
       - name: Build PlatformIO Project esp32solo1
         run: |
           pio run --environment esp32solo1
           mkdir -p release/esp32solo1
           cp .pio/build/esp32solo1/firmware.bin release/esp32solo1/nuki_hub.bin
           cp .pio/build/esp32solo1/partitions.bin release/esp32solo1/nuki_hub.partitions.bin
-          wget https://github.com/tasmota/arduino-esp32/releases/download/2.0.5.3/framework-arduinoespressif32-solo1.zip
-          unzip framework-arduinoespressif32-solo1.zip
-          cp framework-arduinoespressif32/tools/sdk/esp32/bin/bootloader_dio_80m.bin release/esp32solo1/bootloader.bin
+          cp .pio/build/esp32solo1/bootloader.bin release/esp32solo1/bootloader.bin
           echo "esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq keep --flash_size detect 0x1000 bootloader.bin 0x10000 nuki_hub.bin 0x8000 nuki_hub.partitions.bin" > release/esp32solo1/flash.sh
-      - uses: actions/upload-artifact@v3
+      - name: Upload Artifact esp32dev
+        uses: actions/upload-artifact@v4
         with:
           name: esp32dev-assets
           path: release/esp32dev
-      - uses: actions/upload-artifact@v3
+      - name: Upload Artifact esp32-s3-devkitc-1
+        uses: actions/upload-artifact@v4
         with:
-          name: az-delivery-devkit-v4-assets
-          path: release/az-delivery-devkit-v4
-      - uses: actions/upload-artifact@v3
+          name: esp32-s3-devkitc-1-assets
+          path: release/esp32-s3-devkitc-1
+      - name: Upload Artifact esp32solo1
+        uses: actions/upload-artifact@v4
         with:
           name: esp32solo1-assets
           path: release/esp32solo1

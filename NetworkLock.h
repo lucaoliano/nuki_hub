@@ -23,7 +23,7 @@ public:
     void initialize();
 
     void publishKeyTurnerState(const NukiLock::KeyTurnerState& keyTurnerState, const NukiLock::KeyTurnerState& lastKeyTurnerState);
-    void publishBinaryState(NukiLock::LockState lockState);
+    void publishState(NukiLock::LockState lockState);
     void publishAuthorizationInfo(const std::list<NukiLock::LogEntry>& logEntries);
     void clearAuthorizationInfo();
     void publishCommandResult(const char* resultStr);
@@ -34,7 +34,7 @@ public:
     void publishRssi(const int& rssi);
     void publishRetry(const std::string& message);
     void publishBleAddress(const std::string& address);
-    void publishHASSConfig(char* deviceType, const char* baseTopic, char* name, char* uidString, const bool& hasDoorSensor, const bool& hasKeypad, const bool& publishAuthData, char* lockAction, char* unlockAction, char* openAction, char* lockedState, char* unlockedState);
+    void publishHASSConfig(char* deviceType, const char* baseTopic, char* name, char* uidString, const bool& hasDoorSensor, const bool& hasKeypad, const bool& publishAuthData, char* lockAction, char* unlockAction, char* openAction);
     void removeHASSConfig(char* uidString);
     void publishKeypad(const std::list<NukiLock::KeypadEntry>& entries, uint maxKeypadCodeCount);
     void publishKeypadCommandResult(const char* result);
@@ -73,14 +73,16 @@ private:
 
     bool _firstTunerStatePublish = true;
     unsigned long _lastMaintenanceTs = 0;
-    bool _haEnabled= false;
+    bool _haEnabled = false;
     bool _reconnected = false;
 
     String _keypadCommandName = "";
     String _keypadCommandCode = "";
     uint _keypadCommandId = 0;
     int _keypadCommandEnabled = 1;
-    uint8_t _queryCommands = 0;
+    uint8_t _queryCommands = 0;    
+    uint32_t authId = 0;
+    char authName[33];
 
     char* _buffer;
     size_t _bufferSize;
