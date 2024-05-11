@@ -5,3 +5,4 @@ cmake-build-release
 cmake-build-release-s3
 .pio
 .vscode
+.project
