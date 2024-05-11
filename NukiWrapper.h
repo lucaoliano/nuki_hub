@@ -45,20 +45,22 @@ public:
 
 private:
     static LockActionResult onLockActionReceivedCallback(const char* value);
-    static void onConfigUpdateReceivedCallback(const char* topic, const char* value);
+    static void onConfigUpdateReceivedCallback(const char* value);
     static void onKeypadCommandReceivedCallback(const char* command, const uint& id, const String& name, const String& code, const int& enabled);
     static void onKeypadJsonCommandReceivedCallback(const char* value);
+    static void onTimeControlCommandReceivedCallback(const char* value);
     static void gpioActionCallback(const GpioAction& action, const int& pin);
-
-    void onConfigUpdateReceived(const char* topic, const char* value);
     void onKeypadCommandReceived(const char* command, const uint& id, const String& name, const String& code, const int& enabled);
+    void onConfigUpdateReceived(const char* value);
     void onKeypadJsonCommandReceived(const char* value);
+    void onTimeControlCommandReceived(const char* value);
 
     void updateKeyTurnerState();
     void updateBatteryState();
     void updateConfig();
     void updateAuthData();
     void updateKeypad();
+    void updateTimeControl(bool retrieved);
     void postponeBleWatchdog();
 
     void updateGpioOutputs();
@@ -71,6 +73,11 @@ private:
     void printCommandResult(Nuki::CmdResult result);
 
     NukiLock::LockAction lockActionToEnum(const char* str); // char array at least 14 characters
+    Nuki::AdvertisingMode advertisingModeToEnum(const char* str);
+    Nuki::TimeZoneId timeZoneToEnum(const char* str);
+    uint8_t fobActionToInt(const char *str);
+    NukiLock::ButtonPressAction buttonPressActionToEnum(const char* str);
+    Nuki::BatteryType batteryTypeToEnum(const char* str);
 
     std::string _deviceName;
     NukiDeviceId* _deviceId = nullptr;
@@ -87,6 +94,7 @@ private:
     bool _publishAuthData = false;
     bool _clearAuthData = false;
     std::vector<uint16_t> _keypadCodeIds;
+    std::vector<uint8_t> _timeControlIds;
 
     NukiLock::KeyTurnerState _lastKeyTurnerState;
     NukiLock::KeyTurnerState _keyTurnerState;
@@ -117,6 +125,7 @@ private:
     unsigned long _nextLockStateUpdateTs = 0;
     unsigned long _nextBatteryReportTs = 0;
     unsigned long _nextConfigUpdateTs = 0;
+    unsigned long _nextTimeControlUpdateTs = 0;
     unsigned long _nextKeypadUpdateTs = 0;
     unsigned long _nextRssiTs = 0;
     unsigned long _lastRssi = 0;

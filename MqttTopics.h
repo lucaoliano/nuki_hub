@@ -20,6 +20,10 @@
 #define mqtt_topic_lock_address "/lock/address"
 #define mqtt_topic_lock_retry "/lock/retry"
 
+#define mqtt_topic_config_action "/configuration/action"
+#define mqtt_topic_config_action_command_result "/configuration/commandResult"
+#define mqtt_topic_config_basic_json "/configuration/basicJson"
+#define mqtt_topic_config_advanced_json "/configuration/advancedJson"
 #define mqtt_topic_config_button_enabled "/configuration/buttonEnabled"
 #define mqtt_topic_config_led_enabled "/configuration/ledEnabled"
 #define mqtt_topic_config_led_brightness "/configuration/ledBrightness"
@@ -53,6 +57,10 @@
 #define mqtt_topic_keypad_json "/keypad/json"
 #define mqtt_topic_keypad_json_action "/keypad/actionJson"
 #define mqtt_topic_keypad_json_command_result "/keypad/commandResultJson"
+
+#define mqtt_topic_timecontrol_json "/timecontrol/json"
+#define mqtt_topic_timecontrol_action "/timecontrol/action"
+#define mqtt_topic_timecontrol_command_result "/timecontrol/commandResult"
 
 #define mqtt_topic_info_hardware_version "/info/hardwareVersion"
 #define mqtt_topic_info_firmware_version "/info/firmwareVersion"
